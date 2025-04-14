@@ -1,5 +1,12 @@
+import com.github.javaparser.StaticJavaParser;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.FieldDeclaration;
+import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.type.ClassOrInterfaceType;
+import com.github.javaparser.ast.expr.MethodCallExpr;
 import javax.tools.*;
 import java.io.*;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.security.MessageDigest;
@@ -19,13 +26,57 @@ public class IncrementalCompiler {
     // Dependency graph: file -> set of imported files
     private static final Map<String, Set<String>> dependencyGraph = new HashMap<>();
 
+    public static void parseSourceFolder(){
+        File[] files=SRC_DIR.listFiles((d,name)->name.endsWith(".java"));
+        if(files==null)return;
+        for(File file:files){
+            try{
+                //parsed representation of java source file
+                //root node for AST
+                CompilationUnit cu=StaticJavaParser.parse(file);
+                //analyzing parse tree (AST)
+                String className=file.getName().replace(".java","");
+                Set<String> set=new HashSet<>();
+                //class variables
+                cu.findAll(FieldDeclaration.class).forEach(field->{
+                    field.getVariables().forEach(v->{
+                        field.getElementType().ifClassOrInterfaceType(t->{
+                            set.add(t.getNameAsString());
+                        });
+                    });
+                });
+                //methods
+                //MethodDecalaration.class return class object of type MethodDeclaration (i.e. a runtime representation for it)
+                cu.findAll(MethodDeclaration.class).forEach(method->{
+                    //return type
+                    method.getType().ifClassOrInterfaceType(t->set.add(t.getNameAsString()));
+                    //parameters,local variables,generic type arguments
+                    method.findAll(ClassOrInterfaceType.class).forEach(t->set.add(t.getNameAsString()));
+                });
+
+                //static method callls or object.method()
+                cu.findAll(MethodCallExpr.class).forEach(call->{
+                    call.getScope().ifPresent(scope->{
+                        if(scope.isNameExpr()){
+                            set.add(scope.asNameExpr().getNameAsString());
+                        }
+                    });
+                });
+                dependencyGraph.put(className,set);
+                saveDepsFile(file.getName(), set);
+            }catch(IOException e){
+                System.err.println("Failed to parse: "+file.getName());
+                e.printStackTrace();
+            }
+        }
+    }
     public static void main(String[] args) throws Exception {
         if (!BIN_DIR.exists()) BIN_DIR.mkdirs();
         if (!DEPS_DIR.exists()) DEPS_DIR.mkdirs();
 
         loadHashes(); // Load previous file hashes from disk
-        buildDependencyGraph(); // Build the dependency graph and save to .deps/
-
+        // buildDependencyGraph(); // Build the dependency graph and save to .deps/
+        parseSourceFolder();
         List<File> changedFiles = detectChangedFiles(); // Find modified files
         List<File> deletedFiles = detectDeletedFiles(); // Find deleted files
         cleanDeletedFiles(deletedFiles); // Remove stale .class and .deps files
