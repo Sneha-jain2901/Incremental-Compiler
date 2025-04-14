@@ -4,6 +4,6 @@ public class Main {
         Scanner sc=new Scanner(System.in);
         Greeting.sayHello();
         Employee e=new Employee();
-        System.out.println("The result is: " + Utils.multiply(4, 5));
+        System.out.println("The result is: " + Utils.multiply(4, 19));
     }
 }

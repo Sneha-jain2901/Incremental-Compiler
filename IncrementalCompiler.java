@@ -26,53 +26,58 @@ public class IncrementalCompiler {
     // Dependency graph: file -> set of imported files
     private static final Map<String, Set<String>> dependencyGraph = new HashMap<>();
 
-    public static void parseSourceFolder(){
-        File[] files=SRC_DIR.listFiles((d,name)->name.endsWith(".java"));
-        if(files==null)return;
-        for(File file:files){
-            try{
-                //parsed representation of java source file
-                //root node for AST
-                CompilationUnit cu=StaticJavaParser.parse(file);
-                //analyzing parse tree (AST)
-                String className=file.getName().replace(".java","");
-                Set<String> set=new HashSet<>();
-                //class variables
-                cu.findAll(FieldDeclaration.class).forEach(field->{
-                    field.getVariables().forEach(v->{
-                        field.getElementType().ifClassOrInterfaceType(t->{
-                            set.add(t.getNameAsString());
+    public static void parseSourceFolder() {
+        File[] files = SRC_DIR.listFiles((d, name) -> name.endsWith(".java"));
+        if (files == null)
+            return;
+        for (File file : files) {
+            try {
+                // parsed representation of java source file
+                // root node for AST
+                CompilationUnit cu = StaticJavaParser.parse(file);
+                // analyzing parse tree (AST)
+                String className = file.getName().replace(".java", "");
+                Set<String> set = new HashSet<>();
+                // class variables
+                cu.findAll(FieldDeclaration.class).forEach(field -> {
+                    field.getVariables().forEach(v -> {
+                        field.getElementType().ifClassOrInterfaceType(t -> {
+                            set.add(t.getNameAsString() + ".java");
                         });
                     });
                 });
-                //methods
-                //MethodDecalaration.class return class object of type MethodDeclaration (i.e. a runtime representation for it)
-                cu.findAll(MethodDeclaration.class).forEach(method->{
-                    //return type
-                    method.getType().ifClassOrInterfaceType(t->set.add(t.getNameAsString()));
-                    //parameters,local variables,generic type arguments
-                    method.findAll(ClassOrInterfaceType.class).forEach(t->set.add(t.getNameAsString()));
+                // methods
+                // MethodDecalaration.class return class object of type MethodDeclaration (i.e.
+                // a runtime representation for it)
+                cu.findAll(MethodDeclaration.class).forEach(method -> {
+                    // return type
+                    method.getType().ifClassOrInterfaceType(t -> set.add(t.getNameAsString() + ".java"));
+                    // parameters,local variables,generic type arguments
+                    method.findAll(ClassOrInterfaceType.class).forEach(t -> set.add(t.getNameAsString() + ".java"));
                 });
 
-                //static method callls or object.method()
-                cu.findAll(MethodCallExpr.class).forEach(call->{
-                    call.getScope().ifPresent(scope->{
-                        if(scope.isNameExpr()){
-                            set.add(scope.asNameExpr().getNameAsString());
+                // static method callls or object.method()
+                cu.findAll(MethodCallExpr.class).forEach(call -> {
+                    call.getScope().ifPresent(scope -> {
+                        if (scope.isNameExpr()) {
+                            set.add(scope.asNameExpr().getNameAsString() + ".java");
                         }
                     });
                 });
-                dependencyGraph.put(className,set);
+                dependencyGraph.put(file.getName(), set);
                 saveDepsFile(file.getName(), set);
-            }catch(IOException e){
-                System.err.println("Failed to parse: "+file.getName());
+            } catch (IOException e) {
+                System.err.println("Failed to parse: " + file.getName());
                 e.printStackTrace();
             }
         }
     }
+
     public static void main(String[] args) throws Exception {
-        if (!BIN_DIR.exists()) BIN_DIR.mkdirs();
-        if (!DEPS_DIR.exists()) DEPS_DIR.mkdirs();
+        if (!BIN_DIR.exists())
+            BIN_DIR.mkdirs();
+        if (!DEPS_DIR.exists())
+            DEPS_DIR.mkdirs();
 
         loadHashes(); // Load previous file hashes from disk
         // buildDependencyGraph(); // Build the dependency graph and save to .deps/
@@ -82,7 +87,8 @@ public class IncrementalCompiler {
         cleanDeletedFiles(deletedFiles); // Remove stale .class and .deps files
 
         Set<File> toCompile = getFilesToCompile(changedFiles); // Determine what to recompile
-        for(File file: toCompile)System.out.println(file);
+        for (File file : toCompile)
+            System.out.println(file);
         if (!toCompile.isEmpty()) {
             compileFiles(toCompile); // Compile changed files and their dependents
             updateHashes(toCompile); // Update hashes for compiled files
@@ -106,15 +112,16 @@ public class IncrementalCompiler {
     // Extract dependencies (imported classes) from a source file
     private static Set<String> extractDependencies(File file) throws IOException {
         Set<String> deps = new HashSet<>();
-    
+
         // Get all source files to check for class name mentions
-        Set<String> allSourceClassNames = Arrays.stream(Objects.requireNonNull(SRC_DIR.listFiles((d, name) -> name.endsWith(".java"))))
-                                                .map(f -> f.getName().replace(".java", ""))
-                                                .collect(Collectors.toSet());
-    
+        Set<String> allSourceClassNames = Arrays
+                .stream(Objects.requireNonNull(SRC_DIR.listFiles((d, name) -> name.endsWith(".java"))))
+                .map(f -> f.getName().replace(".java", ""))
+                .collect(Collectors.toSet());
+
         for (String line : Files.readAllLines(file.toPath())) {
             line = line.trim();
-    
+
             // Handle import statements (same as before)
             if (line.startsWith("import ")) {
                 String className = line.replace("import", "").replace(";", "").trim();
@@ -132,9 +139,9 @@ public class IncrementalCompiler {
                 }
             }
         }
-    
+
         return deps;
-    }    
+    }
 
     // Save dependencies of a source file to a .deps file
     private static void saveDepsFile(String fileName, Set<String> deps) throws IOException {
@@ -157,7 +164,7 @@ public class IncrementalCompiler {
     // Detect source files that were deleted since the last run
     private static List<File> detectDeletedFiles() {
         Set<String> existing = Arrays.stream(Objects.requireNonNull(SRC_DIR.listFiles((d, n) -> n.endsWith(".java"))))
-                                     .map(File::getName).collect(Collectors.toSet());
+                .map(File::getName).collect(Collectors.toSet());
         return fileHashes.keySet().stream()
                 .filter(f -> !existing.contains(f))
                 .map(f -> new File(SRC_DIR, f))
@@ -205,23 +212,23 @@ public class IncrementalCompiler {
     private static void compileFiles(Set<File> files) throws IOException {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
-    
+
         // Set output directory for compiled classes
         fileManager.setLocation(StandardLocation.CLASS_OUTPUT, List.of(BIN_DIR));
-    
+
         // Add BIN_DIR to classpath so that existing compiled classes can be used
         fileManager.setLocation(StandardLocation.CLASS_PATH, List.of(BIN_DIR));
-    
+
         // Prepare source files for compilation
         Iterable<? extends JavaFileObject> compilationUnits = fileManager.getJavaFileObjectsFromFiles(files);
         compiler.getTask(null, fileManager, null, null, null, compilationUnits).call();
         fileManager.close();
     }
-    
 
     // Load file hashes from disk (from previous run)
     private static void loadHashes() {
-        if (!HASHES_FILE.exists()) return;
+        if (!HASHES_FILE.exists())
+            return;
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(HASHES_FILE))) {
             fileHashes.putAll((Map<String, String>) ois.readObject());
             System.out.println("Loaded previous hashes.");
