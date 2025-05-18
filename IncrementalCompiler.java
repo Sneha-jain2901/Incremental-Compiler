@@ -83,8 +83,6 @@ public class IncrementalCompiler {
         // buildDependencyGraph(); // Build the dependency graph and save to .deps/
         parseSourceFolder();
         List<File> changedFiles = detectChangedFiles(); // Find modified files
-        List<File> deletedFiles = detectDeletedFiles(); // Find deleted files
-        cleanDeletedFiles(deletedFiles); // Remove stale .class and .deps files
 
         Set<File> toCompile = getFilesToCompile(changedFiles); // Determine what to recompile
         for (File file : toCompile)
@@ -161,26 +159,6 @@ public class IncrementalCompiler {
         return changed;
     }
 
-    // Detect source files that were deleted since the last run
-    private static List<File> detectDeletedFiles() {
-        Set<String> existing = Arrays.stream(Objects.requireNonNull(SRC_DIR.listFiles((d, n) -> n.endsWith(".java"))))
-                .map(File::getName).collect(Collectors.toSet());
-        return fileHashes.keySet().stream()
-                .filter(f -> !existing.contains(f))
-                .map(f -> new File(SRC_DIR, f))
-                .collect(Collectors.toList());
-    }
-
-    // Clean up deleted files: remove class and deps files
-    private static void cleanDeletedFiles(List<File> deletedFiles) {
-        for (File deleted : deletedFiles) {
-            fileHashes.remove(deleted.getName());
-            new File(DEPS_DIR, deleted.getName() + ".deps").delete();
-            String classFileName = deleted.getName().replace(".java", ".class");
-            new File(BIN_DIR, classFileName).delete();
-            dependencyGraph.remove(deleted.getName());
-        }
-    }
 
     // Determine which files need to be recompiled based on changed files
     private static Set<File> getFilesToCompile(List<File> changedFiles) {
