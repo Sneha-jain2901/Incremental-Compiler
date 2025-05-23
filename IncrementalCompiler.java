@@ -12,19 +12,25 @@ import java.nio.file.*;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
+import javax.swing.*; // Add this for SwingUtilities
+import com.github.javaparser.*;
+import com.github.javaparser.ast.*;
+import com.github.javaparser.ast.body.*;
+import com.github.javaparser.ast.type.*;
+import com.github.javaparser.ast.expr.*;
 
 public class IncrementalCompiler {
     // Directories for source files, compiled classes, and dependency metadata
-    private static final File SRC_DIR = new File("src");
-    private static final File BIN_DIR = new File("bin");
-    private static final File DEPS_DIR = new File(".deps");
-    private static final File HASHES_FILE = new File("hashes.ser");
+    public static final File SRC_DIR = new File("src");
+    public static final File BIN_DIR = new File("bin");
+    public static final File DEPS_DIR = new File(".deps");
+    public static final File HASHES_FILE = new File("hashes.ser");
 
     // Hash map for file content hashes
-    private static final Map<String, String> fileHashes = new HashMap<>();
+    public static final Map<String, String> fileHashes = new HashMap<>();
 
     // Dependency graph: file -> set of imported files
-    private static final Map<String, Set<String>> dependencyGraph = new HashMap<>();
+    public static final Map<String, Set<String>> dependencyGraph = new HashMap<>();
 
     public static void parseSourceFolder() {
         File[] files = SRC_DIR.listFiles((d, name) -> name.endsWith(".java"));
@@ -73,7 +79,7 @@ public class IncrementalCompiler {
         }
     }
 
-    public static void main(String[] args) throws Exception {
+   /* public static void main(String[] args) throws Exception {
         if (!BIN_DIR.exists())
             BIN_DIR.mkdirs();
         if (!DEPS_DIR.exists())
@@ -95,10 +101,37 @@ public class IncrementalCompiler {
         } else {
             System.out.println("No changes detected. Compilation skipped.");
         }
+    }*/
+   public static void main(String[] args) throws Exception {
+        if (args.length > 0 && args[0].equals("--ui")) {
+            // Launch UI version
+            SwingUtilities.invokeLater(() -> {
+                CompilerUI ui = new CompilerUI();
+                ui.setVisible(true);
+            });
+        } else {
+            // Original CLI version
+            if (!BIN_DIR.exists()) BIN_DIR.mkdirs();
+            if (!DEPS_DIR.exists()) DEPS_DIR.mkdirs();
+
+            loadHashes();
+            parseSourceFolder();
+            List<File> changedFiles = detectChangedFiles();
+            Set<File> toCompile = getFilesToCompile(changedFiles);
+
+            if (!toCompile.isEmpty()) {
+                compileFiles(toCompile);
+                updateHashes(toCompile);
+                saveHashes();
+                System.out.println("Compiled: " + toCompile);
+            } else {
+                System.out.println("No changes detected. Compilation skipped.");
+            }
+        }
     }
 
     // Builds a dependency graph by parsing import statements
-    private static void buildDependencyGraph() throws IOException {
+    public static void buildDependencyGraph() throws IOException {
         dependencyGraph.clear();
         for (File file : Objects.requireNonNull(SRC_DIR.listFiles((d, name) -> name.endsWith(".java")))) {
             Set<String> deps = extractDependencies(file);
@@ -108,7 +141,7 @@ public class IncrementalCompiler {
     }
 
     // Extract dependencies (imported classes) from a source file
-    private static Set<String> extractDependencies(File file) throws IOException {
+    public static Set<String> extractDependencies(File file) throws IOException {
         Set<String> deps = new HashSet<>();
 
         // Get all source files to check for class name mentions
@@ -142,13 +175,13 @@ public class IncrementalCompiler {
     }
 
     // Save dependencies of a source file to a .deps file
-    private static void saveDepsFile(String fileName, Set<String> deps) throws IOException {
+    public static void saveDepsFile(String fileName, Set<String> deps) throws IOException {
         File depFile = new File(DEPS_DIR, fileName + ".deps");
         Files.write(depFile.toPath(), deps);
     }
 
     // Detect files whose content has changed by comparing SHA-256 hashes
-    private static List<File> detectChangedFiles() throws Exception {
+    public static List<File> detectChangedFiles() throws Exception {
         List<File> changed = new ArrayList<>();
         for (File file : Objects.requireNonNull(SRC_DIR.listFiles((d, name) -> name.endsWith(".java")))) {
             String hash = computeFileHash(file);
@@ -161,7 +194,7 @@ public class IncrementalCompiler {
 
 
     // Determine which files need to be recompiled based on changed files
-    private static Set<File> getFilesToCompile(List<File> changedFiles) {
+    public static Set<File> getFilesToCompile(List<File> changedFiles) {
         Set<String> toCompileNames = new HashSet<>();
         Queue<String> queue = new LinkedList<>();
 
@@ -187,7 +220,7 @@ public class IncrementalCompiler {
     }
 
     // Compile the given set of source files
-    private static void compileFiles(Set<File> files) throws IOException {
+    public static void compileFiles(Set<File> files) throws IOException {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
 
@@ -204,7 +237,7 @@ public class IncrementalCompiler {
     }
 
     // Load file hashes from disk (from previous run)
-    private static void loadHashes() {
+    public static void loadHashes() {
         if (!HASHES_FILE.exists())
             return;
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(HASHES_FILE))) {
@@ -216,7 +249,7 @@ public class IncrementalCompiler {
     }
 
     // Save updated file hashes to disk
-    private static void saveHashes() {
+    public static void saveHashes() {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(HASHES_FILE))) {
             oos.writeObject(fileHashes);
         } catch (IOException e) {
@@ -225,14 +258,14 @@ public class IncrementalCompiler {
     }
 
     // Update hashes for a collection of compiled files
-    private static void updateHashes(Collection<File> files) throws Exception {
+    public static void updateHashes(Collection<File> files) throws Exception {
         for (File file : files) {
             fileHashes.put(file.getName(), computeFileHash(file));
         }
     }
 
     // Compute SHA-256 hash of a file's contents
-    private static String computeFileHash(File file) throws Exception {
+    public static String computeFileHash(File file) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] bytes = Files.readAllBytes(file.toPath());
         byte[] hashBytes = digest.digest(bytes);
@@ -241,5 +274,17 @@ public class IncrementalCompiler {
             sb.append(String.format("%02x", b));
         }
         return sb.toString();
+    }
+
+    public static Map<String, Set<String>> getDependencyGraph() {
+        return dependencyGraph;
+    }
+
+    public static CompilationUnit parseFileForAST(File file) throws IOException {
+        return StaticJavaParser.parse(file);
+    }
+
+    public static File getSrcDir() {
+        return SRC_DIR;
     }
 }
