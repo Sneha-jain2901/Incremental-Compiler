@@ -130,50 +130,6 @@ public class IncrementalCompiler {
         }
     }
 
-    // Builds a dependency graph by parsing import statements
-    public static void buildDependencyGraph() throws IOException {
-        dependencyGraph.clear();
-        for (File file : Objects.requireNonNull(SRC_DIR.listFiles((d, name) -> name.endsWith(".java")))) {
-            Set<String> deps = extractDependencies(file);
-            dependencyGraph.put(file.getName(), deps);
-            saveDepsFile(file.getName(), deps);
-        }
-    }
-
-    // Extract dependencies (imported classes) from a source file
-    public static Set<String> extractDependencies(File file) throws IOException {
-        Set<String> deps = new HashSet<>();
-
-        // Get all source files to check for class name mentions
-        Set<String> allSourceClassNames = Arrays
-                .stream(Objects.requireNonNull(SRC_DIR.listFiles((d, name) -> name.endsWith(".java"))))
-                .map(f -> f.getName().replace(".java", ""))
-                .collect(Collectors.toSet());
-
-        for (String line : Files.readAllLines(file.toPath())) {
-            line = line.trim();
-
-            // Handle import statements (same as before)
-            if (line.startsWith("import ")) {
-                String className = line.replace("import", "").replace(";", "").trim();
-                String simple = className.substring(className.lastIndexOf('.') + 1) + ".java";
-                File possibleSource = new File(SRC_DIR, simple);
-                if (possibleSource.exists()) {
-                    deps.add(simple);
-                }
-            } else {
-                // NEW: Look for direct mentions of other class names
-                for (String className : allSourceClassNames) {
-                    if (line.contains(className) && !file.getName().equals(className + ".java")) {
-                        deps.add(className + ".java");
-                    }
-                }
-            }
-        }
-
-        return deps;
-    }
-
     // Save dependencies of a source file to a .deps file
     public static void saveDepsFile(String fileName, Set<String> deps) throws IOException {
         File depFile = new File(DEPS_DIR, fileName + ".deps");
