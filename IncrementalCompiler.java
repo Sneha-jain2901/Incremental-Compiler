@@ -79,29 +79,7 @@ public class IncrementalCompiler {
         }
     }
 
-   /* public static void main(String[] args) throws Exception {
-        if (!BIN_DIR.exists())
-            BIN_DIR.mkdirs();
-        if (!DEPS_DIR.exists())
-            DEPS_DIR.mkdirs();
 
-        loadHashes(); // Load previous file hashes from disk
-        // buildDependencyGraph(); // Build the dependency graph and save to .deps/
-        parseSourceFolder();
-        List<File> changedFiles = detectChangedFiles(); // Find modified files
-
-        Set<File> toCompile = getFilesToCompile(changedFiles); // Determine what to recompile
-        for (File file : toCompile)
-            System.out.println(file);
-        if (!toCompile.isEmpty()) {
-            compileFiles(toCompile); // Compile changed files and their dependents
-            updateHashes(toCompile); // Update hashes for compiled files
-            saveHashes(); // Save updated hashes to disk
-            System.out.println("Compiled: " + toCompile);
-        } else {
-            System.out.println("No changes detected. Compilation skipped.");
-        }
-    }*/
    public static void main(String[] args) throws Exception {
         if (args.length > 0 && args[0].equals("--ui")) {
             // Launch UI version
